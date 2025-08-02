@@ -1,0 +1,52 @@
+scout_startups:
+  description: >
+    Use one or two precise online searches to identify top 5 early-stage startups in the domain of {domain} since 2020.
+    Be efficient — do not search more than necessary.
+    For each startup, include the name, website (if available), and a one-line description.
+  expected_output: >
+    A list of 5 promising startups with names, websites, and one-line descriptions.
+  agent: startup_scout
+
+enrich_startups:
+  description: >
+    Take the startup list discovered in the previous task and enrich each company using its domain(eg: example.com).
+    You must return an enriched list of startups, preserving original fields and adding following fields if available:
+    - Industry
+    - Employees
+    - Revenue
+    - Tech Stack
+    - Location
+
+    Return in JSON format as a list of enriched startup objects.
+  expected_output: >
+    A JSON array of enriched startup objects with fields:
+    name, description, website, industry, employees, revenue, tech_stack, location
+  agent: company_enricher
+  context: [scout_startups]
+
+analyze_trends:
+  description: >
+    Review the list of startups and analyze the common trends, technologies, and business models
+    they share. Identify what these trends suggest about the future of the {domain} industry.
+  expected_output: >
+    A paragraph summarizing 2-3 key trends seen across the startups and what it suggests about the domain's direction.
+  agent: trend_analyst
+
+investment_recommendation:
+  description: >
+    Based on the previous findings, generate structured output suitable for UI display.
+    You must divide your output into 3 sections:
+
+    1. startup_list (list of objects): Each item must include name, description, website, industry, employees, revenue, tech_stack, location ONLY if the item fields has a defined value.
+    2. trends_analysis (string): A summary of 2-3 key market/tech trends observed.
+    3. investment_summary (markdown): A markdown-formatted, persuasive VC brief that summarizes
+       market opportunity, trends, startup impact, and gives a strong verdict.
+
+    Format your response as a valid JSON object with those three fields.
+    This JSON will be consumed by a front-end with tabs: Startup List, Trends, Investment Summary.
+
+    Ensure your final answer is strictly valid JSON, with properly escaped newlines in the markdown.
+  expected_output: >
+    A JSON object with fields: `startup_list` (list of dicts), `trends_analysis` (string), `investment_summary` (markdown string).
+  agent: vc_advisor
+  context: [enrich_startups, analyze_trends]
