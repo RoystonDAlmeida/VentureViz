@@ -1,13 +1,37 @@
 import re
 import json
+from datetime import timedelta
+from django.utils import timezone
 from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
-from analyzer.models import AnalysisResult
+from analyzer.models import AnalysisResult, UserRequestLog
+from django.contrib.auth.models import AnonymousUser
 
 # Import your Crew class
 from ventureviz.crew import Ventureviz
 
-@csrf_exempt
+# DRF imports
+from rest_framework.decorators import api_view, authentication_classes, permission_classes
+from rest_framework.authentication import TokenAuthentication
+from rest_framework.permissions import AllowAny
+from rest_framework.response import Response
+from rest_framework import status
+from rest_framework.authtoken.models import Token
+from .serializers import RegisterSerializer
+
+
+def get_client_ip(request):
+    """Extract real IP address from request, including behind proxy."""
+
+    x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
+    if x_forwarded_for:
+        ip = x_forwarded_for.split(",")[0].strip()
+    else:
+        ip = request.META.get("REMOTE_ADDR")
+    return ip
+
+@api_view(['POST'])
+@authentication_classes([TokenAuthentication])
+@permission_classes([AllowAny])  # We'll manually handle auth/anon logic
 def analyze_domain(request):
     """
         @Description:- Analyze a domain using the Ventureviz Crew.
@@ -20,12 +44,30 @@ def analyze_domain(request):
     if request.method != "POST":
         return JsonResponse({"error": "Only POST allowed"}, status=405)
 
-    try:
-        data = json.loads(request.body)
-        domain = data.get("domain")
-        if not domain:
-            return JsonResponse({"error": "Missing 'domain' in request body"}, status=400)
+    # Extract the user and get the domain
+    user = request.user
+    domain = request.data.get("domain")
 
+    if not domain:
+        return JsonResponse({"error": "Missing 'domain' in request body"}, status=400)
+
+    # 🔐 Limit anonymous users to 2 requests
+    if not user or not user.is_authenticated:
+        ip = get_client_ip(request)
+        now = timezone.now()
+        cutoff = now - timedelta(hours=24)
+
+        # Count number of requests from this IP in the last 24h
+        recent_requests = UserRequestLog.objects.filter(ip_address=ip, timestamp__gte=cutoff).count()
+
+        if recent_requests >= 2:
+            return JsonResponse({"error": "Request limit reached. Please sign up or log in."}, status=403)
+
+        # Log this request
+        UserRequestLog.objects.create(ip_address=ip)
+
+    # 🧠 Run CrewAI
+    try:
         # Run the crew with the provided domain(Response is raw text output)
         crew_output = Ventureviz().crew().kickoff(inputs={"domain": domain})
 
@@ -48,6 +90,7 @@ def analyze_domain(request):
                             # Create an ORM record of ORM class "AnalysisResult"
                             AnalysisResult.objects.create(
                                 domain=domain,
+                                user=user if user.is_authenticated else None,
                                 startup_list=crew_result_json_dict.get("startup_list", []),
                                 trends_analysis=crew_result_json_dict.get("trends_analysis", ""),
                                 investment_summary=crew_result_json_dict.get("investment_summary", "")
@@ -71,3 +114,19 @@ def analyze_domain(request):
 
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def register_user(request):
+    """
+    Register a new user using email, password, and confirm_password.
+    """
+    serializer = RegisterSerializer(data=request.data)
+    if serializer.is_valid():
+        user = serializer.save()
+        token, _ = Token.objects.get_or_create(user=user)
+        return Response({
+            "message": "User registered successfully",
+            "token": token.key
+        }, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
