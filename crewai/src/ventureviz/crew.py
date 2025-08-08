@@ -154,5 +154,6 @@ class Ventureviz():
             agents=self.agents,
             tasks=self.tasks,
             process=Process.sequential,
+            max_rpm=8,
             verbose=True
         )
