@@ -1,4 +1,5 @@
 from django.db import models
+from django.contrib.auth.models import User
 
 # Defines the database model for storing the results of a domain analysis.
 class AnalysisResult(models.Model):
@@ -6,6 +7,14 @@ class AnalysisResult(models.Model):
     Represents a single analysis result stored in the database.
     Each instance holds the generated insights for a specific domain.
     """
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        help_text="The user who made the request. Null if anonymous."
+    )
 
     # The domain that was analyzed (e.g., "healthcare", "fintech").
     domain = models.CharField(max_length=255)
@@ -32,3 +41,20 @@ class AnalysisResult(models.Model):
         """
         
         return f"Analysis on {self.domain} ({self.created_at})"
+
+class UserRequestLog(models.Model):
+    """
+    Tracks every request made by an unauthenticated user by IP.
+    Automatically counts requests per IP in 24-hour windows.
+    """
+
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    timestamp = models.DateTimeField(auto_now_add=True, null=True, blank=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['ip_address', 'timestamp']),
+        ]
+
+    def __str__(self):
+        return f"{self.ip_address} @ {self.timestamp}"
