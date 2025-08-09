@@ -4,20 +4,16 @@ from datetime import timedelta
 from django.utils import timezone
 from django.http import JsonResponse
 from analyzer.models import AnalysisResult, UserRequestLog
-from django.contrib.auth.models import AnonymousUser
 
 # Import your Crew class
 from ventureviz.crew import Ventureviz
 
 # DRF imports
 from rest_framework.decorators import api_view, authentication_classes, permission_classes
-from rest_framework.authentication import TokenAuthentication
 from rest_framework.permissions import AllowAny
-from rest_framework.response import Response
-from rest_framework import status
-from rest_framework.authtoken.models import Token
-from .serializers import RegisterSerializer
 
+# Custom firebase authentication import
+from analyzer.authentication import FirebaseAuthentication
 
 def get_client_ip(request):
     """Extract real IP address from request, including behind proxy."""
@@ -30,8 +26,8 @@ def get_client_ip(request):
     return ip
 
 @api_view(['POST'])
-@authentication_classes([TokenAuthentication])
-@permission_classes([AllowAny])  # We'll manually handle auth/anon logic
+@authentication_classes([FirebaseAuthentication])
+@permission_classes([AllowAny])  # Allow both auth and anon users
 def analyze_domain(request):
     """
         @Description:- Analyze a domain using the Ventureviz Crew.
@@ -114,19 +110,3 @@ def analyze_domain(request):
 
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
-
-@api_view(['POST'])
-@permission_classes([AllowAny])
-def register_user(request):
-    """
-    Register a new user using email, password, and confirm_password.
-    """
-    serializer = RegisterSerializer(data=request.data)
-    if serializer.is_valid():
-        user = serializer.save()
-        token, _ = Token.objects.get_or_create(user=user)
-        return Response({
-            "message": "User registered successfully",
-            "token": token.key
-        }, status=status.HTTP_201_CREATED)
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
