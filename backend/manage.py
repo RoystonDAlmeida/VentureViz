@@ -5,17 +5,25 @@ import sys
 from dotenv import load_dotenv
 from pathlib import Path
 
-load_dotenv()   # Load the env variables
+# Load environment variables
+load_dotenv()
 
-# Set PYTHONPATH manually
+# Absolute path to project root
+ROOT_DIR = Path(__file__).resolve().parent.parent.parent  # ventureviz/
+
+# Add PYTHONPATH from .env relative to root
 PYTHONPATH = os.getenv("PYTHONPATH")
-if PYTHONPATH and PYTHONPATH not in sys.path:
-    sys.path.insert(0, str(Path(PYTHONPATH).resolve()))
+if PYTHONPATH:
+    crewai_path = (ROOT_DIR / PYTHONPATH).resolve()
+    if str(crewai_path) not in sys.path:
+        sys.path.insert(0, str(crewai_path))
 
 def main():
     """Run administrative tasks."""
 
-    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'backend.settings')
+    # ✅ Default to production settings
+    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'backend.settings.base')
+
     try:
         from django.core.management import execute_from_command_line
     except ImportError as exc:
@@ -25,7 +33,6 @@ def main():
             "forget to activate a virtual environment?"
         ) from exc
     execute_from_command_line(sys.argv)
-
 
 if __name__ == '__main__':
     main()
