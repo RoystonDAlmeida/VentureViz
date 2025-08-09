@@ -17,9 +17,9 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 MIDDLEWARE.insert(1, 'whitenoise.middleware.WhiteNoiseMiddleware')
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
-# Database (Postgres recommended in real prod)
+# Remote DB configuration
 DATABASES = {
-    'default': dj_database_url.config(default=os.getenv("DATABASE_URL", f"sqlite:///{BASE_DIR / 'db.sqlite3'}"))
+    'default': dj_database_url.config(default=os.getenv("DATABASE_URL"))
 }
 
 # Security (only enforce if DEBUG is False)
